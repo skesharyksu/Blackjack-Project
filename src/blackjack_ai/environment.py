@@ -11,6 +11,7 @@ class BlackjackEnv:
         self.dealer_sum = 0
         self.player_has_usable_ace = False
         self.dealer_has_usable_ace = False
+        self.history = []  # Track game history for analysis
 
     def reset(self):
         """Reset the game environment and deal initial cards"""
@@ -81,7 +82,7 @@ class BlackjackEnv:
         if self.game_over:
             return self._get_state(), 0, True, info
 
-        if action == 0:  # Stick
+        if action == 0:  # Stand
             return self._dealer_play()
 
         elif action == 1:  # Hit
@@ -96,16 +97,38 @@ class BlackjackEnv:
             if self.player_sum > 21:
                 self.game_over = True
                 info['dealer_hand'] = self.format_hand(self.dealer_hand, show_all=True)
+                self.history.append({
+                    'result': 'loss',
+                    'player_sum': self.player_sum,
+                    'dealer_sum': self.dealer_sum
+                })
+                return self._get_state(), -1, True, info
+
+            # Defensive: too many cards, force game over
+            if len(self.player_hand) > 10:
+                self.game_over = True
+                info['dealer_hand'] = self.format_hand(self.dealer_hand, show_all=True)
+                self.history.append({
+                    'result': 'loss',
+                    'player_sum': self.player_sum,
+                    'dealer_sum': self.dealer_sum
+                })
                 return self._get_state(), -1, True, info
 
             return self._get_state(), 0, False, info
 
         elif action == 2:  # Double down
             if len(self.player_hand) > 2:
-                # Can't double down after hitting
+                # Can't double down after hitting, end the game to avoid infinite loop
+                self.game_over = True
                 info['player_hand'] = self.format_hand(self.player_hand)
-                info['dealer_hand'] = self.format_hand(self.dealer_hand, show_all=False)
-                return self._get_state(), -1, False, info
+                info['dealer_hand'] = self.format_hand(self.dealer_hand, show_all=True)
+                self.history.append({
+                    'result': 'loss',
+                    'player_sum': self.player_sum,
+                    'dealer_sum': self.dealer_sum
+                })
+                return self._get_state(), -1, True, info
 
             # Deal one card and show the complete hand
             self.player_hand.append(self.deck.deal())
@@ -118,6 +141,11 @@ class BlackjackEnv:
             if self.player_sum > 21:
                 self.game_over = True
                 info['dealer_hand'] = self.format_hand(self.dealer_hand, show_all=True)
+                self.history.append({
+                    'result': 'loss',
+                    'player_sum': self.player_sum,
+                    'dealer_sum': self.dealer_sum
+                })
                 return self._get_state(), -2, True, info
 
             # Now dealer plays (since double down forces stand)
@@ -137,13 +165,34 @@ class BlackjackEnv:
         info['player_hand'] = self.format_hand(self.player_hand, show_all=True)
         info['dealer_hand'] = self.format_hand(self.dealer_hand, show_all=True)
 
+        # Calculate reward based on outcome
         if self.dealer_sum > 21:
+            self.history.append({
+                'result': 'win',
+                'player_sum': self.player_sum,
+                'dealer_sum': self.dealer_sum
+            })
             return self._get_state(), 1, True, info
         elif self.dealer_sum > self.player_sum:
+            self.history.append({
+                'result': 'loss',
+                'player_sum': self.player_sum,
+                'dealer_sum': self.dealer_sum
+            })
             return self._get_state(), -1, True, info
         elif self.dealer_sum < self.player_sum:
+            self.history.append({
+                'result': 'win',
+                'player_sum': self.player_sum,
+                'dealer_sum': self.dealer_sum
+            })
             return self._get_state(), 1, True, info
         else:
+            self.history.append({
+                'result': 'push',
+                'player_sum': self.player_sum,
+                'dealer_sum': self.dealer_sum
+            })
             return self._get_state(), 0, True, info
 
     def format_hand(self, hand, show_all=False):
@@ -152,3 +201,39 @@ class BlackjackEnv:
             return ", ".join(str(card) for card in hand)
         else:
             return str(hand[0])
+
+    def get_statistics(self):
+        """Return game statistics"""
+        if not self.history:
+            return None
+
+        total_games = len(self.history)
+        wins = sum(1 for game in self.history if game['result'] == 'win')
+        losses = sum(1 for game in self.history if game['result'] == 'loss')
+        pushes = sum(1 for game in self.history if game['result'] == 'push')
+        
+        return {
+            'total_games': total_games,
+            'wins': wins,
+            'losses': losses,
+            'pushes': pushes,
+            'win_rate': wins / total_games if total_games > 0 else 0
+        }
+
+    def get_win_loss_stats(self):
+        """Return only win/loss/push counts and rates (additive, does not affect bankroll or other stats)"""
+        if not self.history:
+            return None
+        total_games = len(self.history)
+        wins = sum(1 for game in self.history if game['result'] == 'win')
+        losses = sum(1 for game in self.history if game['result'] == 'loss')
+        pushes = sum(1 for game in self.history if game['result'] == 'push')
+        return {
+            'total_games': total_games,
+            'wins': wins,
+            'losses': losses,
+            'pushes': pushes,
+            'win_rate': wins / total_games if total_games > 0 else 0,
+            'loss_rate': losses / total_games if total_games > 0 else 0,
+            'push_rate': pushes / total_games if total_games > 0 else 0
+        }
