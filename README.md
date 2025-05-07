@@ -26,7 +26,7 @@ A Q-learning AI agent that learns to play Blackjack optimally through reinforcem
    jupyter notebook
    ```
 6. Open `blackjack_training.ipynb` to run the main AI training and evaluation notebook for the CIS 730 project.
-7. Open `blackjack_modular_training.ipynb` to run the enhancements notebook, which includes additional agent comparisons, improved statistical analysis, and enhanced visualizations for the CIS 732 project.
+7. Open `blackjack_modular_training.ipynb` to run the enhancements notebook, which includes DQN, improved statistical analysis, and enhanced visualizations for the CIS 732 project.
 
 ## Project Structure
 - `src/blackjack_ai/` - Core implementation of the Blackjack environment and Q-learning agent
